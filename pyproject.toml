@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "exomass"
+version = "0.1.0"
+description = "Mass inference for exoplanets from catalogue observables"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Yigit Can Atilgan" }]
+keywords = ["exoplanets", "mass-radius", "machine-learning", "astronomy"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+
+# The shipped models are joblib pickles produced with the versions pinned
+# below.  Loading a pickle built by a different scikit-learn is not guaranteed
+# to work, and when it does the result is not guaranteed to be identical, so
+# these are upper-bounded rather than left open.
+dependencies = [
+    "numpy>=1.26,<3",
+    "pandas>=2.0,<3",
+    "scikit-learn>=1.6,<1.8",
+    "xgboost>=2.0,<4",
+    "joblib>=1.3,<2",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+exomass = "exomass.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["exomass*"]
+
+[tool.setuptools.package-data]
+exomass = ["models/*.json", "models/*.joblib"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

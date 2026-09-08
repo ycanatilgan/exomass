@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: If you use this software, please cite both the software and the accompanying article.
+title: "exomass: mass inference for exoplanets from catalogue observables"
+abstract: >-
+  Trained regressors that predict exoplanet masses from archive observables,
+  split into a small-planet and a giant-planet regime, with a physics cascade
+  that fills derivable predictors so that only a planet radius is strictly
+  required.
+type: software
+version: 0.1.0
+license: MIT
+authors:
+  - family-names: Atilgan
+    given-names: Yigit Can
+keywords:
+  - exoplanets
+  - mass-radius relation
+  - machine learning
+  - astronomy
