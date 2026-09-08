@@ -6,6 +6,7 @@ abstract: >-
   split into a small-planet and a giant-planet regime, with a physics cascade
   that fills derivable predictors so that only a planet radius is strictly
   required.
+repository-code: https://github.com/ycanatilgan/exomass
 type: software
 version: 0.1.0
 license: MIT

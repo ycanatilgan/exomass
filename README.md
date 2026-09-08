@@ -13,8 +13,11 @@ the seventeen predictors.
 ## Install
 
 ```bash
-pip install -e .
+pip install git+https://github.com/ycanatilgan/exomass.git
 ```
+
+To work on a local checkout instead, use `pip install -e .` from the repository
+root.
 
 The shipped models were built with scikit-learn 1.7.2 and xgboost 3.1.1, and the
 dependency bounds in `pyproject.toml` are pinned around those versions.

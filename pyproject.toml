@@ -34,6 +34,10 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest>=7"]
 
+[project.urls]
+Homepage = "https://github.com/ycanatilgan/exomass"
+Repository = "https://github.com/ycanatilgan/exomass"
+
 [project.scripts]
 exomass = "exomass.cli:main"
 
