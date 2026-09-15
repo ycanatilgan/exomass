@@ -8,7 +8,9 @@ abstract: >-
   required.
 repository-code: https://github.com/ycanatilgan/exomass
 type: software
-version: 0.1.0
+version: 0.2.0
+date-released: 2026-09-15
+doi: 10.5281/zenodo.22658907
 license: MIT
 authors:
   - family-names: Atilgan
@@ -18,3 +20,16 @@ keywords:
   - mass-radius relation
   - machine learning
   - astronomy
+preferred-citation:
+  type: article
+  title: "Estimation of Exoplanet Mass: Machine Learning Approach"
+  authors:
+    - family-names: Atılgan
+      given-names: Y. C.
+    - family-names: Baştürk
+      given-names: Ö.
+    - family-names: Aksaker
+      given-names: N.
+  journal: "Monthly Notices of the Royal Astronomical Society"
+  year: 2026
+  status: submitted

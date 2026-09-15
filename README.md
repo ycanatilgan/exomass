@@ -1,5 +1,7 @@
 # exomass
 
+[![DOI](https://zenodo.org/badge/1361279113.svg)](https://doi.org/10.5281/zenodo.22658907)
+
 Mass inference for exoplanets from catalogue observables.
 
 Two gradient-boosted and tree-ensemble regressors, trained on a provenance-filtered
