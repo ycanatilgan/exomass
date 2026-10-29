@@ -1,0 +1,97 @@
+{
+  "description": "Contract between the exomass package and the shipped models.",
+  "training_sample": "NASA Exoplanet Archive snapshot of 2026.10.28, cleaned as in the paper, plus the eight Solar System planets: 1457 planets",
+  "algorithm": "LightGBM regressor of log10(M/M_earth), one model for all radii",
+  "missing_values": "NaN, handled natively by the trees; no imputation, no sentinel",
+  "boundary_radius_earth": 8.36,
+  "radius_domain_earth": [
+    1.1,
+    18.49
+  ],
+  "no_log_cols": [
+    "stellar_metallicity_dex",
+    "stellar_logg",
+    "system_planet_count",
+    "stellar_luminosity"
+  ],
+  "models": {
+    "full": {
+      "file": "exomass_lgbm_2026.10.28.txt",
+      "feature_order": [
+        "log_planet_radius_earth",
+        "log_transit_depth",
+        "log_transit_duration",
+        "log_ratio_distance_star_radius",
+        "log_orbital_period_days",
+        "log_orbit_semi_major_axis_au",
+        "log_insolation_flux_earth",
+        "log_equilibrium_temp_k",
+        "log_stellar_mass_solar",
+        "log_stellar_radius_solar",
+        "log_stellar_temp_k",
+        "stellar_logg",
+        "log_stellar_density",
+        "stellar_luminosity",
+        "stellar_metallicity_dex",
+        "log_stellar_rot_vel",
+        "system_planet_count"
+      ],
+      "params": {
+        "learning_rate": 0.02,
+        "min_child_samples": 10,
+        "n_estimators": 300,
+        "num_leaves": 15
+      },
+      "cv_eps": {
+        "small": 0.655,
+        "giant": 0.729,
+        "all": 0.695
+      }
+    },
+    "no_vsini": {
+      "file": "exomass_lgbm_2026.10.28_no_vsini.txt",
+      "feature_order": [
+        "log_planet_radius_earth",
+        "log_transit_depth",
+        "log_transit_duration",
+        "log_ratio_distance_star_radius",
+        "log_orbital_period_days",
+        "log_orbit_semi_major_axis_au",
+        "log_insolation_flux_earth",
+        "log_equilibrium_temp_k",
+        "log_stellar_mass_solar",
+        "log_stellar_radius_solar",
+        "log_stellar_temp_k",
+        "stellar_logg",
+        "log_stellar_density",
+        "stellar_luminosity",
+        "stellar_metallicity_dex",
+        "system_planet_count"
+      ],
+      "params": {
+        "learning_rate": 0.02,
+        "min_child_samples": 10,
+        "n_estimators": 300,
+        "num_leaves": 15
+      },
+      "cv_eps": {
+        "small": 0.656,
+        "giant": 0.758,
+        "all": 0.711
+      }
+    }
+  },
+  "error_definition": "eps = sqrt(mean(ln(M_pred/M_true)^2)); typical error factor exp(eps)",
+  "cv_note": "10x5 cross-validation grouped by host star, on the Oct 2025 training snapshot",
+  "temporal_test_eps": {
+    "small": 0.505,
+    "giant": 0.714,
+    "all": 0.6
+  },
+  "temporal_test_median_residual_dex": {
+    "small": 0.043,
+    "giant": 0.167,
+    "all": 0.088
+  },
+  "temporal_test_note": "119 planets that received masses after the Oct 2025 training snapshot, predicted by the model trained on that snapshot"
+}

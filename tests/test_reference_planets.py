@@ -1,10 +1,10 @@
 """Pin the prediction path against a stored set of reference planets.
 
-``tests/data/reference_planets.csv`` holds forty planets drawn evenly across
-both regimes, together with the mass the released models return for each. They
-span radii from well below to well above the recommended domain and carry
-absent entries in nine of the predictors, so the cascade, the sentinel path
-and the coverage flags are all exercised.
+``tests/data/reference_planets.csv`` holds 39 training planets drawn evenly
+across both regimes, together with the mass each shipped model returns for
+them.  They span radii from well below to well above
+the recommended domain, and some carry absent entries, so the cascade, the NaN
+path and the coverage flags are all exercised.
 
 Nothing outside the package is needed, so these run anywhere.
 """
@@ -19,25 +19,9 @@ import pytest
 
 REFERENCE = Path(__file__).parent / "data" / "reference_planets.csv"
 
-INPUT_COLUMNS = [
-    "planet_radius_earth",
-    "transit_depth",
-    "system_planet_count",
-    "equilibrium_temp_k",
-    "stellar_mass_solar",
-    "insolation_flux_earth",
-    "stellar_luminosity",
-    "stellar_radius_solar",
-    "stellar_rot_vel",
-    "ratio_distance_star_radius",
-    "stellar_temp_k",
-    "stellar_logg",
-    "stellar_density",
-    "orbital_period_days",
-    "stellar_metallicity_dex",
-    "orbit_semi_major_axis_au",
-    "transit_duration",
-]
+from exomass.schema import BASE_COLUMNS
+
+INPUT_COLUMNS = list(BASE_COLUMNS)
 
 
 @pytest.fixture(scope="module")
@@ -45,13 +29,16 @@ def reference() -> pd.DataFrame:
     return pd.read_csv(REFERENCE)
 
 
-def test_reproduces_reference_masses(reference):
+@pytest.mark.parametrize(
+    "variant, column",
+    [("full", "expected_log10_mass"), ("no_vsini", "expected_log10_mass_no_vsini")],
+)
+def test_reproduces_reference_masses(reference, variant, column):
     from exomass.predict import predict_frame
 
-    result = predict_frame(reference[INPUT_COLUMNS], cascade=True)
+    result = predict_frame(reference[INPUT_COLUMNS], cascade=True, variant=variant)
     delta = np.abs(
-        result["pred_log10_mass"].to_numpy()
-        - reference["expected_log10_mass"].to_numpy()
+        result["pred_log10_mass"].to_numpy() - reference[column].to_numpy()
     )
     worst = int(np.nanargmax(delta))
     assert np.nanmax(delta) < 1e-9, (
@@ -60,7 +47,7 @@ def test_reproduces_reference_masses(reference):
     )
 
 
-def test_routes_every_planet_to_the_recorded_regime(reference):
+def test_labels_every_planet_with_the_recorded_regime(reference):
     from exomass.predict import predict_frame
 
     result = predict_frame(reference[INPUT_COLUMNS], cascade=True)
@@ -108,6 +95,7 @@ def test_cascade_derives_the_expected_predictors():
         "transit_duration",
     }
     assert result["regime"] == "small"
+    assert result["typical_error_factor"] == pytest.approx(np.exp(result["cv_eps"]))
     assert result["in_domain"]
     assert np.isfinite(result["pred_mass_earth"])
 
@@ -166,3 +154,33 @@ def test_cascade_settles_on_non_physical_sources():
     ensure_columns(frame)
     derive_missing_physical(frame)  # must return rather than spin
     assert pd.isna(frame["stellar_logg"].iloc[0])
+
+
+def test_absent_and_non_positive_inputs_reach_the_model_as_nan():
+    """A zero v sin i has no logarithm and must behave exactly like an absent one."""
+    from exomass.predict import predict
+
+    base = dict(radius=11.0, period=3.5, stellar_mass=1.1, stellar_radius=1.2,
+                stellar_teff=6100, planet_count=1)
+    absent = predict(**base)
+    zero = predict(**base, vsini=0.0)
+    assert zero["pred_log10_mass"] == absent["pred_log10_mass"]
+    assert "stellar_rot_vel" in zero["absent"]
+
+
+def test_no_vsini_model_ignores_a_supplied_vsini():
+    from exomass.predict import predict
+
+    base = dict(radius=11.0, period=3.5, stellar_mass=1.1, stellar_radius=1.2,
+                stellar_teff=6100, planet_count=1)
+    slow = predict(**base, vsini=2.0, variant="no_vsini")
+    fast = predict(**base, vsini=40.0, variant="no_vsini")
+    assert slow["pred_log10_mass"] == fast["pred_log10_mass"]
+    assert "ignored" in slow["notes"]
+
+
+def test_rejects_an_unknown_model():
+    from exomass.predict import predict
+
+    with pytest.raises(ValueError, match="unknown model"):
+        predict(radius=2.4, variant="xgb")

@@ -2,14 +2,14 @@ cff-version: 1.2.0
 message: If you use this software, please cite both the software and the accompanying article.
 title: "exomass: mass inference for exoplanets from catalogue observables"
 abstract: >-
-  Trained regressors that predict exoplanet masses from archive observables,
-  split into a small-planet and a giant-planet regime, with a physics cascade
-  that fills derivable predictors so that only a planet radius is strictly
-  required.
+  A LightGBM regressor that predicts exoplanet masses from archive
+  observables, with a physics cascade that fills derivable predictors so that
+  only a planet radius is strictly required, and a catalogue of predicted
+  masses for transiting planets and Kepler candidates.
 repository-code: https://github.com/ycanatilgan/exomass
 type: software
-version: 0.2.0
-date-released: 2026-09-15
+version: 1.0.0
+date-released: 2026-10-29
 doi: 10.5281/zenodo.22658907
 license: MIT
 authors:
@@ -30,6 +30,6 @@ preferred-citation:
       given-names: Ö.
     - family-names: Aksaker
       given-names: N.
-  journal: "Monthly Notices of the Royal Astronomical Society"
+  journal: "Publications of the Astronomical Society of the Pacific"
   year: 2026
   status: submitted

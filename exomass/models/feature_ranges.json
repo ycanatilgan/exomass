@@ -1,0 +1,96 @@
+{
+  "description": "Range of each predictor across the training sample, used to note when an input lands where the model has no examples. Changes no prediction.",
+  "training_sample": "NASA Exoplanet Archive snapshot of 2026.10.28, cleaned as in the paper, plus the eight Solar System planets: 1457 planets",
+  "percentiles": [
+    2,
+    98
+  ],
+  "excluded": "For log-transformed predictors only strictly positive entries contribute; for the others every finite entry does.",
+  "ranges": {
+    "planet_radius_earth": {
+      "low": 1.1012,
+      "high": 18.412324,
+      "n": 1457
+    },
+    "transit_depth": {
+      "low": 0.013701,
+      "high": 3.314108,
+      "n": 1449
+    },
+    "transit_duration": {
+      "low": 0.910496,
+      "high": 11.1126,
+      "n": 1430
+    },
+    "ratio_distance_star_radius": {
+      "low": 3.533314,
+      "high": 133.05576,
+      "n": 1457
+    },
+    "orbital_period_days": {
+      "low": 0.76571,
+      "high": 186.545436,
+      "n": 1457
+    },
+    "orbit_semi_major_axis_au": {
+      "low": 0.01439,
+      "high": 0.69496,
+      "n": 1457
+    },
+    "insolation_flux_earth": {
+      "low": 1.723732,
+      "high": 4167.324636,
+      "n": 1455
+    },
+    "equilibrium_temp_k": {
+      "low": 309.8032,
+      "high": 2222.12,
+      "n": 1455
+    },
+    "stellar_mass_solar": {
+      "low": 0.304328,
+      "high": 1.66892,
+      "n": 1457
+    },
+    "stellar_radius_solar": {
+      "low": 0.320516,
+      "high": 2.387723,
+      "n": 1457
+    },
+    "stellar_temp_k": {
+      "low": 3340.16,
+      "high": 6739.2,
+      "n": 1455
+    },
+    "stellar_logg": {
+      "low": 3.82576,
+      "high": 4.94,
+      "n": 1457
+    },
+    "stellar_density": {
+      "low": 0.08036,
+      "high": 13.0,
+      "n": 1457
+    },
+    "stellar_luminosity": {
+      "low": -1.93704,
+      "high": 0.891188,
+      "n": 1455
+    },
+    "stellar_metallicity_dex": {
+      "low": -0.39,
+      "high": 0.42,
+      "n": 1443
+    },
+    "stellar_rot_vel": {
+      "low": 0.4,
+      "high": 39.4098,
+      "n": 1094
+    },
+    "system_planet_count": {
+      "low": 1.0,
+      "high": 6.0,
+      "n": 1457
+    }
+  }
+}

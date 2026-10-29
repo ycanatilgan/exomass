@@ -3,9 +3,9 @@
 The caller is not expected to supply all 17 predictors.  Give the package a
 planet radius plus whatever else is at hand and the physics cascade fills in
 everything it can derive, which for a typical transiting system means most of
-the vector.  What cannot be derived falls back to the sentinel the models were
-trained to recognise, and every prediction reports which of the three cases
-each predictor ended up in.
+the vector.  What cannot be derived reaches the model as NaN, as absent values
+did in training, and every prediction reports which of the three cases each
+predictor ended up in.
 
 Absent, non-physical and off-coverage inputs are all recorded in the returned
 notes, so a caller can see what the model was actually given.
@@ -15,18 +15,20 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-import joblib
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
-from .features import build_feature_frame, classify_regime, select_for_regime
+from .features import build_feature_frame, classify_regime, select_for_variant
 from .physics import CASCADE_COLUMNS, derive_missing_physical, ensure_columns
 from .schema import (
     BASE_COLUMNS,
+    CV_EPS,
     FEATURE_RANGES,
+    MODEL_INFO,
     MODEL_PATHS,
     RADIUS_DOMAIN_EARTH,
-    REGIME_FEATURES,
+    VARIANT_FEATURES,
 )
 
 #: How many out-of-range quantities to spell out in the notes before
@@ -84,15 +86,15 @@ POSITIVE_DEFINITE = (
 
 
 @lru_cache(maxsize=None)
-def load_model(regime: str):
-    """Load and cache one regime's trained pipeline."""
+def load_model(variant: str = "full") -> lgb.Booster:
+    """Load and cache one of the shipped LightGBM models."""
     try:
-        path = MODEL_PATHS[regime]
+        path = MODEL_PATHS[variant]
     except KeyError:
         raise ValueError(
-            f"unknown regime {regime!r}, expected one of {sorted(MODEL_PATHS)}"
+            f"unknown model {variant!r}, expected one of {sorted(MODEL_PATHS)}"
         ) from None
-    return joblib.load(path)
+    return lgb.Booster(model_file=str(path))
 
 
 def resolve_names(mapping: dict) -> dict:
@@ -114,7 +116,7 @@ def resolve_names(mapping: dict) -> dict:
 def predict_frame(
     df: pd.DataFrame,
     cascade: bool = True,
-    regime: str | None = None,
+    variant: str = "full",
 ) -> pd.DataFrame:
     """Predict masses for a frame of physical quantities.
 
@@ -127,10 +129,15 @@ def predict_frame(
         Fill derivable predictors from physics before predicting.  On by
         default, matching how the training sample was prepared.  Set to
         ``False`` to leave every unsupplied predictor absent instead.
-    regime
-        Force every row through one regime's model instead of routing on
-        radius.  Mostly useful for inspecting behaviour near the boundary.
+    variant
+        ``"full"`` (default) uses all 17 predictors.  ``"no_vsini"`` uses the
+        model trained without the projected rotational velocity, meant for
+        catalogues that never carry it; a supplied v sin i is then ignored.
     """
+    if variant not in VARIANT_FEATURES:
+        raise ValueError(
+            f"unknown model {variant!r}, expected one of {sorted(VARIANT_FEATURES)}"
+        )
     work = df.copy()
     renamed = [ALIASES.get(c, c) for c in work.columns]
 
@@ -151,15 +158,14 @@ def predict_frame(
 
     if "planet_radius_earth" not in work.columns:
         raise ValueError(
-            "planet_radius_earth is required: it selects the regime and is the "
-            "dominant predictor in both"
+            "planet_radius_earth is required: it is the dominant predictor and "
+            "sets the regime"
         )
 
     notes: list[list[str]] = [[] for _ in range(len(work))]
 
-    # The planet count is used without a log, so an absent one reaches the
-    # model as 0 rather than as the usual -9 sentinel.  Every planet in the
-    # training sample carries a real count, so a zero is worth reporting.
+    # Every planet in the training sample carries a planet count, so the
+    # model never learned what an absent one means.  Worth reporting.
     if "system_planet_count" not in work.columns:
         absent_count = np.ones(len(work), dtype=bool)
     else:
@@ -171,8 +177,7 @@ def predict_frame(
     for pos, missing in enumerate(absent_count):
         if missing:
             notes[pos].append(
-                "system_planet_count absent, model sees 0, a value it was never "
-                "trained on"
+                "system_planet_count absent, every training planet had one"
             )
 
     for column in POSITIVE_DEFINITE:
@@ -245,31 +250,28 @@ def predict_frame(
                 spelled += f", and {extra} more"
             notes[pos].append(f"outside the training range: {spelled}")
 
+    if variant == "no_vsini" and not absent_after["stellar_rot_vel"].all():
+        for pos, missing in enumerate(absent_after["stellar_rot_vel"].to_numpy()):
+            if not missing:
+                notes[pos].append("stellar_rot_vel supplied but ignored by the no_vsini model")
+
+    # One model covers every radius.  The regime labels the result and sets
+    # the typical error, nothing more.
     radius = pd.to_numeric(work["planet_radius_earth"], errors="coerce")
-    if regime is None:
-        regimes = classify_regime(radius.to_numpy())
-    else:
-        if regime not in REGIME_FEATURES:
-            raise ValueError(
-                f"unknown regime {regime!r}, expected one of {sorted(REGIME_FEATURES)}"
-            )
-        regimes = pd.Series(
-            np.where(radius.notna() & (radius > 0), regime, None),
-            index=range(len(work)),
-            dtype="object",
-        )
-    regimes = pd.Series(regimes.to_numpy(), index=features.index, dtype="object")
+    regimes = pd.Series(
+        classify_regime(radius.to_numpy()).to_numpy(), index=features.index, dtype="object"
+    )
+    usable = regimes.notna().to_numpy()
 
     pred_log = np.full(len(work), np.nan)
     model_used = np.array([None] * len(work), dtype="object")
-
-    for label in REGIME_FEATURES:
-        mask = (regimes == label).to_numpy()
-        if not mask.any():
-            continue
-        model = load_model(label)
-        pred_log[mask] = model.predict(select_for_regime(features.loc[mask], label))
-        model_used[mask] = f"{type(model[-1]).__name__}_{label}"
+    if usable.any():
+        chosen = select_for_variant(features.loc[usable], variant)
+        pred_log[usable] = load_model(variant).predict(chosen.to_numpy(dtype="float64"))
+        model_used[usable] = MODEL_INFO[variant]["file"]
+    eps = np.array(
+        [CV_EPS[variant][r] if r is not None else np.nan for r in regimes], dtype="float64"
+    )
 
     low, high = RADIUS_DOMAIN_EARTH
     in_domain = (radius >= low) & (radius <= high)
@@ -298,6 +300,8 @@ def predict_frame(
             "pred_mass_earth": mass_earth,
             "pred_mass_jup": mass_earth / MJUP_TO_MEARTH,
             "pred_density_gcm3": density,
+            "cv_eps": eps,
+            "typical_error_factor": np.exp(eps),
             "in_domain": in_domain.to_numpy(),
             "derived": derived_lists,
             "absent": absent_lists,
@@ -308,7 +312,7 @@ def predict_frame(
     )
 
 
-def predict(cascade: bool = True, regime: str | None = None, **quantities) -> dict:
+def predict(cascade: bool = True, variant: str = "full", **quantities) -> dict:
     """Predict the mass of a single planet.
 
     Accepts canonical column names or the aliases in :data:`ALIASES`, so::
@@ -317,11 +321,12 @@ def predict(cascade: bool = True, regime: str | None = None, **quantities) -> di
                 stellar_radius=0.88, stellar_teff=5320)
 
     returns a dictionary holding the predicted mass in Earth and Jupiter
-    masses, the implied bulk density, the regime and model that produced it,
+    masses, the implied bulk density, the regime and its typical error factor,
+    the model that produced it,
     which predictors the cascade derived, which stayed absent, whether the
     radius sits inside the recommended domain, and any notes worth reading.
     """
     resolved = resolve_names(quantities)
     frame = pd.DataFrame([resolved])
-    result = predict_frame(frame, cascade=cascade, regime=regime)
+    result = predict_frame(frame, cascade=cascade, variant=variant)
     return result.iloc[0].to_dict()

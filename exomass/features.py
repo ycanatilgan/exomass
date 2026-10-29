@@ -1,9 +1,8 @@
 """Turn physical quantities into the feature matrix the models expect.
 
-The order of operations is part of the contract.  Absent values take the
-sentinel *before* the log transform, so an absent logged predictor arrives at
-the model as ``log10(1e-9) = -9``, which is the value the models associate
-with an absent entry.
+An absent value stays NaN and reaches the model as NaN; the trees were trained
+that way and route it themselves.  A logged predictor that is zero or negative
+has no logarithm, so it is treated as absent too.
 """
 
 from __future__ import annotations
@@ -15,10 +14,8 @@ from .schema import (
     BASE_COLUMNS,
     BOUNDARY_RADIUS_EARTH,
     FEATURE_ORDER,
-    LOG_FLOOR,
-    MISSING_SENTINEL,
     NO_LOG_COLS,
-    REGIME_FEATURES,
+    VARIANT_FEATURES,
     base_column,
 )
 
@@ -28,7 +25,7 @@ def build_feature_frame(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     Returns the feature frame and a boolean frame, aligned with
     :data:`~exomass.schema.BASE_COLUMNS`, marking which physical entries were
-    absent and therefore took the sentinel.
+    absent and therefore reach the model as NaN.
     """
     absent = pd.DataFrame(index=df.index)
     features = pd.DataFrame(index=df.index)
@@ -36,17 +33,15 @@ def build_feature_frame(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     for feature in FEATURE_ORDER:
         source = base_column(feature)
         if source in df.columns:
-            values = pd.to_numeric(df[source], errors="coerce")
+            values = pd.to_numeric(df[source], errors="coerce").astype("float64")
         else:
             values = pd.Series(np.nan, index=df.index, dtype="float64")
-
-        absent[source] = values.isna()
-        values = values.fillna(MISSING_SENTINEL)
 
         if source in NO_LOG_COLS:
             features[feature] = values
         else:
-            features[feature] = np.log10(np.maximum(values, LOG_FLOOR))
+            features[feature] = np.log10(values.where(values > 0))
+        absent[source] = features[feature].isna()
 
     return features[list(FEATURE_ORDER)], absent[list(BASE_COLUMNS)]
 
@@ -65,12 +60,12 @@ def classify_regime(radius_earth) -> pd.Series:
     )
 
 
-def select_for_regime(features: pd.DataFrame, regime: str) -> pd.DataFrame:
-    """Cut the full feature frame down to one regime's trained subset."""
+def select_for_variant(features: pd.DataFrame, variant: str) -> pd.DataFrame:
+    """Cut the full feature frame down to one model's predictors, in its order."""
     try:
-        wanted = REGIME_FEATURES[regime]
+        wanted = VARIANT_FEATURES[variant]
     except KeyError:
         raise ValueError(
-            f"unknown regime {regime!r}, expected one of {sorted(REGIME_FEATURES)}"
+            f"unknown model {variant!r}, expected one of {sorted(VARIANT_FEATURES)}"
         ) from None
     return features[list(wanted)]

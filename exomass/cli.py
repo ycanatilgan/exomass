@@ -12,9 +12,10 @@ from .predict import ACCEPTED_COLUMNS, ALIASES, predict_frame
 from .schema import (
     BOUNDARY_RADIUS_EARTH,
     FEATURE_RANGES,
+    METADATA,
     MODEL_INFO,
     RADIUS_DOMAIN_EARTH,
-    REGIME_FEATURES,
+    VARIANTS,
 )
 
 _FLAG_HELP = {
@@ -67,9 +68,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="skip the physics cascade and leave derivable quantities absent",
     )
     run.add_argument(
-        "--regime",
-        choices=sorted(REGIME_FEATURES),
-        help="force one regime instead of routing on radius",
+        "--model",
+        choices=VARIANTS,
+        default="full",
+        help="'no_vsini' for catalogues without projected rotational velocity",
     )
     run.add_argument("--json", action="store_true", help="emit JSON")
 
@@ -102,15 +104,23 @@ def _frame_from_args(args: argparse.Namespace) -> pd.DataFrame:
 
 def _print_info() -> None:
     low, high = RADIUS_DOMAIN_EARTH
-    print(f"regime boundary        : {BOUNDARY_RADIUS_EARTH} Earth radii")
+    print(f"training sample        : {METADATA['training_sample']}")
+    print(f"algorithm              : {METADATA['algorithm']}")
+    print(f"regime boundary        : {BOUNDARY_RADIUS_EARTH} Earth radii (labels only)")
     print(f"recommended radius     : {low} to {high} Earth radii")
-    for regime, features in sorted(REGIME_FEATURES.items()):
-        info = MODEL_INFO[regime]
+    print()
+    print("mean log error eps, 10x5 cross-validation grouped by host star:")
+    for name, info in MODEL_INFO.items():
+        eps = info["cv_eps"]
         print(
-            f"{regime:<22} : {info['type']}, {len(features)} features, "
-            f"out-of-fold R2_log {info['oof_r2_log']:.3f}, "
-            f"MAE_log {info['oof_mae_log']:.3f} dex"
+            f"  {name:<9} {len(info['feature_order'])} features, "
+            f"small {eps['small']:.3f}, giant {eps['giant']:.3f}, all {eps['all']:.3f}"
         )
+    test = METADATA["temporal_test_eps"]
+    print(
+        f"later-measured planets (full model): small {test['small']:.3f}, "
+        f"giant {test['giant']:.3f}, all {test['all']:.3f}"
+    )
     print()
     print("training coverage, 2nd to 98th percentile:")
     width = max(len(c) for c in FEATURE_RANGES)
@@ -131,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
         frame = _frame_from_args(args)
 
     result = predict_frame(
-        frame, cascade=not args.no_cascade, regime=args.regime
+        frame, cascade=not args.no_cascade, variant=args.model
     )
 
     if args.out:
@@ -154,8 +164,10 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(f"mass      : {row['pred_mass_earth']:.3f} Earth masses "
               f"({row['pred_mass_jup']:.4f} Jupiter masses)")
+        print(f"error     : typical factor {row['typical_error_factor']:.2f} "
+              f"(eps {row['cv_eps']:.3f})")
         print(f"density   : {row['pred_density_gcm3']:.3f} g/cm3")
-        print(f"regime    : {row['regime']} via {row['model_used']}")
+        print(f"regime    : {row['regime']}, model {row['model_used']}")
         if row["derived"]:
             print(f"derived   : {', '.join(row['derived'])}")
         if row["absent"]:
@@ -168,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"notes     : {row['notes']}")
         return 0
 
-    columns = ["regime", "pred_mass_earth", "pred_density_gcm3", "in_domain"]
+    columns = ["regime", "pred_mass_earth", "typical_error_factor", "pred_density_gcm3", "in_domain"]
     print(result[columns].to_string())
     return 0
 
